@@ -124,3 +124,20 @@ describe('persistent authorized chat', () => {
     ).toBe(403);
   });
 });
+it('loads an old message permalink with a bounded surrounding page', async () => {
+  const current = (await call(fixture.app, alex, 'GET', `/api/topics/${topic}/messages`))
+    .messages[0];
+  for (let i = 0; i < 55; i++)
+    await call(fixture.app, alex, 'POST', `/api/topics/${topic}/messages`, {
+      body: `pagination ${i}`,
+      clientKey: crypto.randomUUID(),
+    });
+  const around = await call(
+    fixture.app,
+    alex,
+    'GET',
+    `/api/topics/${topic}/messages?around=${current.id}`,
+  );
+  expect(around.messages.some((m: { id: string }) => m.id === current.id)).toBe(true);
+  expect(around.messages.length).toBeLessThanOrEqual(50);
+});

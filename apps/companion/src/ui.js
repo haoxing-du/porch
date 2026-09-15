@@ -16,7 +16,11 @@ async function refresh() {
         small = document.createElement('small');
       strong.textContent = p.label;
       small.textContent = p.path;
-      li.append(strong, small);
+      const repair = document.createElement('button');
+      repair.className = 'secondary';
+      repair.textContent = 'Repair folder…';
+      repair.addEventListener('click', () => act(() => window.porch.repairProject(p.localId)));
+      li.append(strong, small, repair);
       return li;
     }),
   );

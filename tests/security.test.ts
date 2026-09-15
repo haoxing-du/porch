@@ -103,3 +103,32 @@ it('stores files, forces active content to download, and enforces membership and
     (await f.app.inject({ url: `/api/attachments/${file.id}`, headers: { cookie: alex } })).body,
   ).toContain('<svg');
 });
+it('enforces configured message and upload limits on the service', async () => {
+  f.cfg.maxMessageChars = 12;
+  f.cfg.maxFileBytes = 3;
+  await f.restart();
+  expect(
+    (
+      await f.app.inject({
+        method: 'POST',
+        url: `/api/topics/${topic}/messages`,
+        headers: { cookie: alex },
+        payload: { body: 'longer than twelve', clientKey: crypto.randomUUID() },
+      })
+    ).statusCode,
+  ).toBe(400);
+  const boundary = 'small';
+  const payload = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="x.txt"\r\nContent-Type: text/plain\r\n\r\n123456\r\n--${boundary}--\r\n`,
+  );
+  expect(
+    (
+      await f.app.inject({
+        method: 'POST',
+        url: `/api/topics/${topic}/attachments`,
+        headers: { cookie: alex, 'content-type': `multipart/form-data; boundary=${boundary}` },
+        payload,
+      })
+    ).statusCode,
+  ).toBe(413);
+});

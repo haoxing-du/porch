@@ -65,3 +65,24 @@ describe('pinned Codex adapter', () => {
     ).toThrow();
   });
 });
+it('preserves Unicode split across stdio chunks and excludes private reasoning', async () => {
+  const { CodexAdapter } = await import('../packages/codex-adapter/src/index');
+  const { resolve } = await import('node:path');
+  const adapter = new CodexAdapter(resolve('tests/fixtures/fake-codex.cjs'));
+  try {
+    await adapter.start();
+    const thread = await adapter.openThread('/tmp', null);
+    const result = await adapter.run(
+      thread,
+      '/tmp',
+      { body: 'Hello' },
+      crypto.randomUUID(),
+      async () => {},
+    );
+    expect(result.outcome).toEqual({ kind: 'reply', text: 'café 改善' });
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_REASONING_CANARY');
+    await expect(adapter.openThread('/tmp', 'lost-thread')).rejects.toThrow('no rollout');
+  } finally {
+    adapter.close();
+  }
+});

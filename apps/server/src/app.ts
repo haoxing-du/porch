@@ -51,12 +51,10 @@ export async function createApp(db: pg.Pool, cfg: Config, options: { schedule?: 
   });
   app.setErrorHandler((error, req, reply) => {
     if (error instanceof ZodError)
-      return reply
-        .code(400)
-        .send({
-          error: 'Check the request fields.',
-          details: error.issues.map((i) => ({ path: i.path, message: i.message })),
-        });
+      return reply.code(400).send({
+        error: 'Check the request fields.',
+        details: error.issues.map((i) => ({ path: i.path, message: i.message })),
+      });
     const code = (error as { code?: string }).code;
     if (code === '23505') return reply.code(409).send({ error: 'This name is already in use.' });
     const status =
@@ -68,16 +66,14 @@ export async function createApp(db: pg.Pool, cfg: Config, options: { schedule?: 
         requestId: req.id,
         code: code ?? (error instanceof Error ? error.name : 'unknown'),
       });
-    return reply
-      .code(status)
-      .send({
-        error:
-          status >= 500
-            ? 'The service could not complete this request. Try again.'
-            : error instanceof Error
-              ? error.message
-              : 'Request failed.',
-      });
+    return reply.code(status).send({
+      error:
+        status >= 500
+          ? 'The service could not complete this request. Try again.'
+          : error instanceof Error
+            ? error.message
+            : 'Request failed.',
+    });
   });
   await authRoutes(app, db, cfg);
   const relay = new Relay(db, cfg);

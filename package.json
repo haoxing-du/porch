@@ -34,6 +34,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "10.1.0",
+    "tsx": "4.23.13",
     "ws": "8.21.3",
     "zod": "3.25.76"
   },
@@ -49,7 +50,6 @@
     "electron-builder": "26.15.3",
     "esbuild": "0.28.2",
     "prettier": "3.9.6",
-    "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vite": "8.3.0",
     "vitest": "5.0.0"

@@ -328,7 +328,7 @@ export function hostRoutes(app: FastifyInstance, db: pg.Pool, relay: Relay, stor
           input.action === 'dismiss' ? 'dismissed' : 'following',
         ]);
         await c.query(
-          "UPDATE requests SET state='canceled' WHERE session_id=$1 AND state IN ('pending','dispatched')",
+          "UPDATE requests SET state='canceled' WHERE session_id=$1 AND state IN ('pending','dispatched','accepted')",
           [session],
         );
         const active = (

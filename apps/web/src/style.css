@@ -1144,3 +1144,42 @@ select {
     transition: none !important;
   }
 }
+.bot-editor {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 15px;
+}
+.bot-editor summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.bot-editor summary small {
+  display: block;
+  margin: 5px 0 0 15px;
+  font-size: 10px;
+}
+.activity {
+  font-size: 12px;
+  margin: 14px 0;
+}
+.activity summary {
+  cursor: pointer;
+  color: #687f59;
+}
+.activity ul {
+  list-style: none;
+  padding: 0;
+}
+.activity li {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid #e7ebdf;
+}
+.activity time {
+  color: #97a28a;
+  font-size: 10px;
+}
+.activity p {
+  margin: 10px 0;
+}

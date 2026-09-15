@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-15",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "build": "Unsigned Electron development build",
+  "passed": [
+    "Launched the real Electron window with a fresh settings directory",
+    "Paired through the companion form against the real local HTTP service",
+    "Detected Codex 0.153.1 and confirmed its existing sign-in",
+    "Opened the native folder picker"
+  ],
+  "blocked": "The Mac was locked. The computer-use tool required the user to unlock it. Folder selection was not completed.",
+  "notVerified": [
+    "Native folder selection and connection through the full companion UI",
+    "Menu-bar lifetime after closing the setup window",
+    "A separate fresh Mac",
+    "Start at login across reboot",
+    "Public signed/notarized installation"
+  ],
+  "cleanup": "Temporary test host credential, project, local settings and database schema were removed."
+}

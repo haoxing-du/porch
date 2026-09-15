@@ -84,11 +84,13 @@ export function NameDialog({
 export function Settings({
   snapshot: s,
   userId,
+  downloadUrl,
   onClose,
   reload,
 }: {
   snapshot: Snapshot;
   userId: string;
+  downloadUrl: string | null;
   onClose: () => void;
   reload: () => Promise<void>;
 }) {
@@ -111,9 +113,13 @@ export function Settings({
       setBusy(false);
     }
   }
-  const ownedProjects = s.projects.filter((p) =>
-    s.hosts.some((h) => h.id === p.host_id && !h.revoked_at),
-  );
+  const ownedProjects = [
+    ...new Map(
+      s.projects
+        .filter((p) => s.hosts.some((h) => h.id === p.host_id && !h.revoked_at))
+        .map((p) => [p.id, p]),
+    ).values(),
+  ];
   return (
     <Modal title="Workspace settings" onClose={onClose}>
       <section className="settings-section">
@@ -121,8 +127,12 @@ export function Settings({
         <p>Your bot runs Codex on your Mac. Chat stays here, in your browser.</p>
         <ol>
           <li>
-            <a href="https://github.com/haoxing-du/porch/releases" target="_blank" rel="noreferrer">
-              Get the Mac companion
+            <a
+              href={downloadUrl ?? 'https://github.com/haoxing-du/porch#connect-this-mac'}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {downloadUrl ? 'Download the Mac companion' : 'Build the Mac companion'}
             </a>
             . Local build instructions are in the repository README.
           </li>
@@ -166,19 +176,7 @@ export function Settings({
         {s.bots
           .filter((b) => b.owner_id === userId)
           .map((b) => (
-            <div className="settings-row" key={b.id}>
-              <div>
-                <strong>@{b.handle}</strong>
-                <small>
-                  {b.host_name} · {b.enabled ? 'Enabled' : 'Disabled'}
-                </small>
-              </div>
-              <button
-                onClick={() => act(() => api(`/bots/${b.id}`, 'PATCH', { enabled: !b.enabled }))}
-              >
-                {b.enabled ? 'Disable' : 'Enable'}
-              </button>
-            </div>
+            <BotEditor key={b.id} bot={b} snapshot={s} act={act} />
           ))}
         <form
           onSubmit={(e) => {
@@ -289,5 +287,136 @@ export function Settings({
         </p>
       )}
     </Modal>
+  );
+}
+function BotEditor({
+  bot,
+  snapshot,
+  act,
+}: {
+  bot: Snapshot['bots'][number];
+  snapshot: Snapshot;
+  act: (fn: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [name, setName] = useState(bot.name),
+    [project, setProject] = useState(bot.default_project_id),
+    [allowed, setAllowed] = useState(
+      snapshot.projects.filter((p) => p.bot_id === bot.id).map((p) => p.id),
+    );
+  const choices = [
+    ...new Map(
+      snapshot.projects.filter((p) => p.host_id === bot.host_id).map((p) => [p.id, p]),
+    ).values(),
+  ];
+  return (
+    <details className="bot-editor">
+      <summary>
+        <strong>@{bot.handle}</strong>
+        <small>
+          {bot.host_name} · {bot.enabled ? 'Enabled' : 'Disabled'}
+        </small>
+      </summary>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void act(() =>
+            api(`/bots/${bot.id}`, 'PATCH', {
+              name,
+              projectId: project,
+              projectIds: [...new Set([...allowed, project])],
+            }),
+          );
+        }}
+      >
+        <label>
+          Display name
+          <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} />
+        </label>
+        <label>
+          Default project
+          <select value={project} onChange={(e) => setProject(e.target.value)}>
+            {choices.map((p) => (
+              <option value={p.id} key={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p>Projects that members can select for a fresh session:</p>
+        {choices.map((p) => (
+          <label className="check" key={p.id}>
+            <input
+              type="checkbox"
+              checked={allowed.includes(p.id) || project === p.id}
+              disabled={project === p.id}
+              onChange={(e) =>
+                setAllowed(
+                  e.target.checked ? [...allowed, p.id] : allowed.filter((id) => id !== p.id),
+                )
+              }
+            />
+            {p.label}
+          </label>
+        ))}
+        <div className="control-row">
+          <button className="primary">Save bot settings</button>
+          <button
+            type="button"
+            onClick={() => act(() => api(`/bots/${bot.id}`, 'PATCH', { enabled: !bot.enabled }))}
+          >
+            {bot.enabled ? 'Disable' : 'Enable'}
+          </button>
+        </div>
+      </form>
+    </details>
+  );
+}
+export function Activity({ sessionId }: { sessionId: string }) {
+  const [open, setOpen] = useState(false),
+    [items, setItems] = useState<{ kind: string; created_at: string }[]>([]),
+    [error, setError] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    const refresh = () =>
+      api<{ activities: typeof items }>(`/sessions/${sessionId}/activity`)
+        .then((data) => {
+          if (alive) setItems(data.activities);
+        })
+        .catch((e) => {
+          if (alive) setError(e.message);
+        });
+    void refresh();
+    const timer = setInterval(refresh, 2000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [open, sessionId]);
+  return (
+    <details className="activity" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>Recent activity</summary>
+      {error && <p role="alert">{error}</p>}
+      {!items.length && <p>No tool activity yet.</p>}
+      <ul>
+        {items.map((item, i) => (
+          <li key={`${item.created_at}:${i}`}>
+            <span>
+              {
+                (
+                  {
+                    command: 'Ran a command',
+                    fileChange: 'Changed files',
+                    tool: 'Used a tool',
+                    compacting: 'Condensed session context',
+                  } as Record<string, string>
+                )[item.kind]
+              }
+            </span>
+            <time>{new Date(item.created_at).toLocaleTimeString()}</time>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

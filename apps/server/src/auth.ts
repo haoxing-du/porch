@@ -9,6 +9,7 @@ import type pg from 'pg';
 import type { Config } from './config';
 import { user, uid, secret, hash, Problem } from './core';
 import { z } from 'zod';
+import { existsSync, createReadStream } from 'node:fs';
 export async function authRoutes(app: FastifyInstance, db: pg.Pool, cfg: Config) {
   async function signIn(
     identity: string,
@@ -35,6 +36,15 @@ export async function authRoutes(app: FastifyInstance, db: pg.Pool, cfg: Config)
       maxAge: 30 * 86400,
     });
   }
+  app.get('/api/companion/download', async (req, reply) => {
+    await user(db, req);
+    if (!cfg.companionDownloadPath || !existsSync(cfg.companionDownloadPath))
+      throw new Problem(404, 'The companion download is not configured. Ask the workspace owner.');
+    reply
+      .header('Content-Type', 'application/octet-stream')
+      .header('Content-Disposition', 'attachment; filename="Porch-Companion.dmg"');
+    return reply.send(createReadStream(cfg.companionDownloadPath));
+  });
   app.get('/api/me', async (req) => {
     let person;
     try {
@@ -45,6 +55,11 @@ export async function authRoutes(app: FastifyInstance, db: pg.Pool, cfg: Config)
     return {
       user: person ?? null,
       devAuth: cfg.devAuth,
+      companionDownloadUrl:
+        cfg.companionDownloadUrl ??
+        (cfg.companionDownloadPath && existsSync(cfg.companionDownloadPath)
+          ? '/api/companion/download'
+          : null),
       githubReady: !!cfg.githubId,
       maxMessageChars: cfg.maxMessageChars,
       maxFileBytes: cfg.maxFileBytes,

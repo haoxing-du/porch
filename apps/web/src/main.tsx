@@ -4,7 +4,8 @@ import Markdown from 'react-markdown';
 import { type Message, parseMessage } from '../../../packages/contracts/src/index';
 import { api, type Bot, type DisplayMessage, type Me, type Session, type Snapshot } from './types';
 import { Composer } from './Composer';
-import { Modal, NameDialog, Settings } from './Dialogs';
+import { readPending, savePending, removePending, type Pending } from './outbox';
+import { Modal, NameDialog, Settings, Activity } from './Dialogs';
 import './style.css';
 const pathState = () => {
   const match = location.pathname.match(/^\/w\/([^/]+)(?:\/t\/([^/]+))?/);
@@ -64,6 +65,7 @@ function App() {
   const participants = snapshot?.sessions.filter((s) => s.topic_id === route.topic) ?? [];
   const navigate = (workspace: string, topic = '') => {
     historyRequest.current++;
+    if (workspace !== route.workspace) setSelectedChannel('');
     window.history.pushState({}, '', `/w/${workspace}${topic ? `/t/${topic}` : ''}`);
     setRoute({ workspace, topic });
     setNav(false);
@@ -104,7 +106,7 @@ function App() {
       });
       if (document.visibilityState === 'visible' && data.messages.length)
         await api(`/topics/${topic}/read`, 'POST', { seq: data.messages.at(-1)!.seq });
-    } else setUnseen(true);
+    } else if (!initial) setUnseen(true);
   }, []);
   useEffect(() => {
     refreshMe().catch((e) => setError(e.message));
@@ -131,13 +133,16 @@ function App() {
     reload().catch((e) => setError(e.message));
   }, [route.workspace, me?.user?.id, reload]);
   useEffect(() => {
-    if (!route.topic) {
+    if (!route.topic || !me?.user) {
       setHistory([]);
       return;
     }
-    atBottom.current = true;
+    atBottom.current = !location.hash.startsWith('#message-');
     loadHistory(true)
-      .then(() => {
+      .then(async () => {
+        if (me?.user)
+          for (const entry of readPending(me.user.id).filter((p) => p.topic === route.topic))
+            await deliver(entry);
         const message = location.hash.slice(1);
         if (message)
           requestAnimationFrame(() =>
@@ -145,7 +150,7 @@ function App() {
           );
       })
       .catch((e) => setError(e.message));
-  }, [route.topic, loadHistory]);
+  }, [route.topic, me?.user?.id, loadHistory]);
   useEffect(() => {
     if (!route.workspace || !me?.user) return;
     let socket: WebSocket,
@@ -194,6 +199,14 @@ function App() {
       socket?.close();
     };
   }, [route.workspace, me?.user?.id, reload, loadHistory]);
+  useEffect(() => {
+    const visible = () => {
+      if (document.visibilityState === 'visible' && routeRef.current.topic)
+        loadHistory().catch((e) => setError(e.message));
+    };
+    document.addEventListener('visibilitychange', visible);
+    return () => document.removeEventListener('visibilitychange', visible);
+  }, [loadHistory]);
   async function action(fn: () => Promise<unknown>) {
     setError('');
     try {
@@ -203,55 +216,74 @@ function App() {
       setError((e as Error).message);
     }
   }
+  async function deliver(entry: Pending) {
+    const { topic, createdAt, ...payload } = entry;
+    const owner = me!.user!;
+    const parsed = parseMessage(payload.body, payload.humanOnly);
+    const pending: DisplayMessage = {
+      id: payload.clientKey,
+      seq: 2147483647,
+      body: parsed.body,
+      humanOnly: parsed.humanOnly,
+      author: { id: owner.id, name: owner.name, type: 'human' },
+      createdAt,
+      mentions: payload.mentions,
+      attachments: [],
+      delivery: 'sending',
+    };
+    setHistory((old) => [...old.filter((m) => m.id !== payload.clientKey), pending]);
+    try {
+      const sent = await api<Message>(`/topics/${topic}/messages`, 'POST', payload);
+      removePending(owner.id, payload.clientKey);
+      if (routeRef.current.topic === topic)
+        setHistory((old) =>
+          [...old.filter((m) => m.id !== payload.clientKey && m.id !== sent.id), sent].sort(
+            (a, b) => a.seq - b.seq,
+          ),
+        );
+      await reload();
+    } catch (e) {
+      if (routeRef.current.topic === topic)
+        setHistory((old) =>
+          old.map((m) =>
+            m.id === payload.clientKey
+              ? {
+                  ...m,
+                  delivery: 'failed',
+                  retry: () => {
+                    void deliver(entry);
+                  },
+                }
+              : m,
+          ),
+        );
+      setError((e as Error).message);
+    }
+  }
   async function send(
     body: string,
     humanOnly: boolean,
     mentions: Message['mentions'],
     attachmentIds: string[],
   ) {
-    const topic = route.topic,
-      clientKey = crypto.randomUUID(),
-      parsed = parseMessage(body, humanOnly);
-    const pending: DisplayMessage = {
-      id: clientKey,
-      seq: 2147483647,
-      body: parsed.body,
-      humanOnly: parsed.humanOnly,
-      author: { id: me!.user!.id, name: me!.user!.name, type: 'human' },
+    const entry: Pending = {
+      topic: route.topic,
+      clientKey: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
+      body,
+      humanOnly,
       mentions,
-      attachments: [],
-      delivery: 'sending',
+      attachmentIds,
     };
-    const deliver = async () => {
-      setHistory((old) => old.map((m) => (m.id === clientKey ? { ...m, delivery: 'sending' } : m)));
-      try {
-        const sent = await api<Message>(`/topics/${topic}/messages`, 'POST', {
-          body,
-          humanOnly,
-          mentions,
-          attachmentIds,
-          clientKey,
-        });
-        if (routeRef.current.topic === topic)
-          setHistory((old) =>
-            [...old.filter((m) => m.id !== clientKey && m.id !== sent.id), sent].sort(
-              (a, b) => a.seq - b.seq,
-            ),
-          );
-        await reload();
-      } catch (e) {
-        if (routeRef.current.topic === topic)
-          setHistory((old) =>
-            old.map((m) => (m.id === clientKey ? { ...m, delivery: 'failed', retry: deliver } : m)),
-          );
-        setError((e as Error).message);
-      }
-    };
-    setHistory((old) => [...old, pending]);
+    try {
+      savePending(me!.user!.id, entry);
+    } catch (e) {
+      setError((e as Error).message);
+      throw e;
+    }
     atBottom.current = true;
+    void deliver(entry);
     requestAnimationFrame(() => list.current?.scrollTo({ top: list.current.scrollHeight }));
-    await deliver();
   }
   async function older() {
     if (!history.length) return;
@@ -710,6 +742,7 @@ function App() {
               <Composer
                 key={route.topic}
                 topicId={route.topic}
+                userId={me.user.id}
                 bots={snapshot!.bots}
                 members={snapshot!.members}
                 maxChars={me.maxMessageChars}
@@ -810,6 +843,7 @@ function App() {
         <Settings
           snapshot={snapshot}
           userId={me.user.id}
+          downloadUrl={me.companionDownloadUrl}
           onClose={() => setDialog('')}
           reload={reload}
         />
@@ -838,6 +872,7 @@ function App() {
                   <>
                     <p>{s.project_label}</p>
                     {s.error && <p className="inline-error">{s.error}</p>}
+                    <Activity sessionId={s.id} />
                     <div className="control-row">
                       <button
                         onClick={() =>

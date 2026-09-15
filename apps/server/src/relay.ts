@@ -243,12 +243,20 @@ export class Relay {
         ).rowCount
       )
         return;
-      const requests = (
+      let requests = (
         await c.query(
-          "SELECT r.id,m.seq FROM requests r JOIN messages m ON m.id=r.message_id WHERE r.session_id=$1 AND r.state='pending' AND r.epoch=$2 AND r.due_at<=now() ORDER BY m.seq LIMIT 3",
+          "SELECT r.id,m.seq,m.body FROM requests r JOIN messages m ON m.id=r.message_id WHERE r.session_id=$1 AND r.state='pending' AND r.epoch=$2 AND r.due_at<=now() ORDER BY m.seq LIMIT 3",
           [sessionId, s.epoch],
         )
       ).rows;
+      let characters = 0,
+        count = 0;
+      for (const r of requests) {
+        if (characters + r.body.length > 24000) break;
+        characters += r.body.length;
+        count++;
+      }
+      requests = requests.slice(0, count);
       if (!requests.length) return;
       const through = requests.at(-1)!.seq;
       const cursor = Math.max(s.cursor, s.start_seq);

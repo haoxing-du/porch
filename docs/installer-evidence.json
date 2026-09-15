@@ -1,0 +1,13 @@
+{
+  "date": "2026-09-15T06:23:08.149Z",
+  "runtime": "0.153.1",
+  "source": "Official @openai/codex npm package",
+  "checks": [
+    "SHA-512 archive verification",
+    "Exact pinned archive layout and regular files",
+    "Bundled executable and companion resources installed",
+    "Downloaded app-server initialization",
+    "Existing account detected",
+    "Separate Mac Keychain credential round trip and cleanup"
+  ]
+}

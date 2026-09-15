@@ -62,6 +62,7 @@ export type Me = {
   user: Person | null;
   devAuth: boolean;
   githubReady: boolean;
+  companionDownloadUrl: string | null;
   workspaces: Workspace[];
   maxMessageChars: number;
   maxFileBytes: number;

@@ -4,11 +4,11 @@ Authority: SPEC.md. The old design handoff does not apply.
 
 ## Milestones
 
-- [ ] 1. Persistent human chat: GitHub sign-in, invites, membership, channels/topics, realtime, mentions, unread state, Markdown, attachments, responsive browser UI.
-- [ ] 2. Real local Codex loop: pinned app-server adapter; create, resume, stream, interrupt; verify reply/wait/silent and a real project edit with two users.
-- [ ] 3. Participation and recovery: one eligible projection, durable dispatches, cursor acknowledgment, stop/dismiss/fresh fences, local folder serialization, offline/reconnect reconciliation.
+- [x] 1. Persistent human chat: GitHub sign-in, invites, membership, channels/topics, realtime, mentions, unread state, Markdown, attachments, responsive browser UI.
+- [x] 2. Real local Codex loop: pinned app-server adapter; create, resume, stream, interrupt; verify reply/wait/silent and a real project edit with two users.
+- [x] 3. Participation and recovery: one eligible projection, durable dispatches, cursor acknowledgment, stop/dismiss/fresh fences, local folder serialization, offline/reconnect reconciliation.
 - [ ] 4. Mac companion: secure pairing, local credentials, project/executable pickers, setup and recovery, menu-bar controls, installable build.
-- [ ] 5. Handoff: migrations, reproducible setup, deployment and packaging instructions, acceptance evidence and limitations.
+- [x] 5. Handoff: migrations, reproducible setup, deployment and packaging instructions, acceptance evidence and limitations.
 
 ## Working method
 
@@ -39,3 +39,11 @@ Write a failing behavior test, implement the behavior, then run the test. Commit
 - The real human-only canary was absent from dispatch context and the host journal.
 - Recovery tests cover stale output after fresh sessions, dismiss/reinvite continuity, explicit offline retry, deduplicated output, folder aliases, and corrupt journals.
 - Fixed a contributing factor found during testing: a stop arriving before its dispatch had no acknowledgment. The host now persists a cancellation marker and acknowledges that no work started.
+
+### Companion and browser hardening
+
+- Built unsigned ARM64 DMG/ZIP. No valid Developer ID certificate is available; notarization is pending external credentials.
+- Verified the official pinned Codex download, SHA-512 integrity, complete runtime resources, initialization, existing sign-in, and a real Mac Keychain credential round trip.
+- Native companion UI launched with fresh settings, paired, and detected Codex. Folder selection is blocked by the locked Mac; an unlock request is pending. The test was stopped and its temporary data/credential removed.
+- Added red/green fixes for UTF-8 split across stdio chunks, simultaneous settings saves, lost-response retries across refresh, old message links, and human-only draft visibility.
+- Deployment, environment, packaging, pilot, limitations, and evidence documents are in docs/. External gates remain open as listed in docs/limitations.md.

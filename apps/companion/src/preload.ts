@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('porch', {
   state: () => ipcRenderer.invoke('porch:state'),
   pair: (value: unknown) => ipcRenderer.invoke('porch:pair', value),
   project: (value: unknown) => ipcRenderer.invoke('porch:project', value),
+  repairProject: (id: string) => ipcRenderer.invoke('porch:repair-project', id),
   executable: () => ipcRenderer.invoke('porch:executable'),
   install: () => ipcRenderer.invoke('porch:install'),
   signin: () => ipcRenderer.invoke('porch:signin'),

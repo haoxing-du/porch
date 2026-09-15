@@ -11,6 +11,8 @@ export interface Config {
   host: string;
   githubId?: string;
   githubSecret?: string;
+  companionDownloadPath?: string;
+  companionDownloadUrl?: string;
   maxFileBytes: number;
   maxMessageChars: number;
   s3?: { bucket: string; endpoint?: string; region: string };
@@ -41,11 +43,25 @@ export function config(): Config {
     devAuth,
     host,
     port: Number(process.env.PORT ?? 3001),
+    companionDownloadPath: resolve(
+      process.env.COMPANION_DOWNLOAD_PATH || 'release/Porch Companion-0.1.0-arm64.dmg',
+    ),
+    companionDownloadUrl: process.env.COMPANION_DOWNLOAD_URL || undefined,
     uploadDir: resolve(process.env.UPLOAD_DIR ?? '.local/uploads'),
     githubId: process.env.GITHUB_CLIENT_ID,
     githubSecret: process.env.GITHUB_CLIENT_SECRET,
-    maxFileBytes: Number(process.env.MAX_FILE_BYTES ?? 20971520),
-    maxMessageChars: Number(process.env.MAX_MESSAGE_CHARS ?? 8000),
+    maxFileBytes: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(104857600)
+      .parse(process.env.MAX_FILE_BYTES ?? 20971520),
+    maxMessageChars: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24000)
+      .parse(process.env.MAX_MESSAGE_CHARS ?? 8000),
     ...(process.env.S3_BUCKET
       ? {
           s3: {

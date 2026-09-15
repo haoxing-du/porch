@@ -13,7 +13,7 @@ export const attachmentSchema = z.object({
 });
 export const sendSchema = z
   .object({
-    body: z.string().max(8000),
+    body: z.string().max(24000),
     clientKey: id,
     humanOnly: z.boolean().default(false),
     mentions: z.array(mentionSchema).max(30).default([]),

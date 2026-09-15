@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseMessage, type Message } from '../../../packages/contracts/src/index';
+import { parseMessage, mentionSchema, type Message } from '../../../packages/contracts/src/index';
 import type { Bot, Person } from './types';
+import { z } from 'zod';
+const draftSchema = z.object({
+  text: z.string(),
+  humanOnly: z.boolean(),
+  mentions: z.array(mentionSchema),
+  files: z.array(z.object({ id: z.string().uuid(), name: z.string() })),
+});
+const emptyDraft = () => ({ text: '', humanOnly: false, mentions: [], files: [] });
 export function Composer({
   topicId,
+  userId,
   bots,
   members,
   maxChars,
@@ -10,6 +19,7 @@ export function Composer({
   onSend,
 }: {
   topicId: string;
+  userId: string;
   bots: Bot[];
   members: Person[];
   maxChars: number;
@@ -19,19 +29,37 @@ export function Composer({
     humanOnly: boolean,
     mentions: Message['mentions'],
     attachmentIds: string[],
-  ) => void;
+  ) => Promise<void>;
 }) {
-  const key = `porch:draft:${topicId}`;
-  const [text, setText] = useState(() => localStorage.getItem(key) ?? '');
-  const [humanOnly, setHumanOnly] = useState(false);
-  const [mentions, setMentions] = useState<Message['mentions']>([]);
-  const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
+  const key = `porch:draft:${userId}:${topicId}`;
+  const [saved] = useState(() => {
+    try {
+      const value = localStorage.getItem(key);
+      return { draft: value ? draftSchema.parse(JSON.parse(value)) : emptyDraft(), invalid: false };
+    } catch {
+      return { draft: emptyDraft(), invalid: true };
+    }
+  });
+  const [blocked, setBlocked] = useState(saved.invalid);
+  const [text, setText] = useState(saved.draft.text);
+  const [humanOnly, setHumanOnly] = useState(saved.draft.humanOnly);
+  const [mentions, setMentions] = useState<Message['mentions']>(saved.draft.mentions);
+  const [files, setFiles] = useState<{ id: string; name: string }[]>(saved.draft.files);
   const [upload, setUpload] = useState<number | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(
+    saved.invalid ? 'The saved draft cannot be read safely. Clear it to start a new message.' : '',
+  );
   const input = useRef<HTMLTextAreaElement>(null);
+  const submitting = useRef(false);
   useEffect(() => {
-    localStorage.setItem(key, text);
-  }, [key, text]);
+    if (blocked) return;
+    try {
+      localStorage.setItem(key, JSON.stringify({ text, humanOnly, mentions, files }));
+    } catch {
+      setError('The draft could not be saved. Free browser storage before continuing.');
+      setBlocked(true);
+    }
+  }, [key, text, humanOnly, mentions, files, blocked]);
   const parsed = parseMessage(text, humanOnly);
   const query = /(?:^|\s)@([^\s@]*)$/.exec(text)?.[1];
   const candidates = [
@@ -52,19 +80,39 @@ export function Composer({
   ]
     .filter((p) => query !== undefined && p.name.toLowerCase().includes(query.toLowerCase()))
     .slice(0, 6);
-  function submit() {
-    if (upload !== null || text.length > maxChars || (!parsed.body.trim() && !files.length)) return;
-    onSend(
-      text,
-      humanOnly,
-      mentions,
-      files.map((f) => f.id),
-    );
-    setText('');
-    setFiles([]);
-    setMentions([]);
-    setHumanOnly(false);
-    input.current?.focus();
+  async function submit() {
+    if (
+      blocked ||
+      submitting.current ||
+      upload !== null ||
+      text.length > maxChars ||
+      (!parsed.body.trim() && !files.length)
+    )
+      return;
+    submitting.current = true;
+    try {
+      await onSend(
+        text,
+        humanOnly,
+        mentions.filter((m) => {
+          const name =
+            m.type === 'bot'
+              ? bots.find((b) => b.id === m.id)?.handle
+              : members.find((p) => p.id === m.id)?.name;
+          return name && text.includes('@' + name);
+        }),
+        files.map((f) => f.id),
+      );
+      setText('');
+      setFiles([]);
+      setMentions([]);
+      setHumanOnly(false);
+      input.current?.focus();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      submitting.current = false;
+    }
   }
   function attach(file: File) {
     if (file.size > maxFileBytes) {
@@ -101,6 +149,17 @@ export function Composer({
       className={`composer ${parsed.humanOnly ? 'human-only' : ''}`}
       aria-label="Write a message"
     >
+      {blocked && (
+        <button
+          onClick={() => {
+            localStorage.removeItem(key);
+            setBlocked(false);
+            setError('');
+          }}
+        >
+          Clear unreadable draft
+        </button>
+      )}
       {error && (
         <p role="alert" className="inline-error">
           {error}
@@ -163,7 +222,7 @@ export function Composer({
             ＋<span className="sr-only">Attach file</span>
             <input
               type="file"
-              disabled={upload !== null || files.length >= 10}
+              disabled={blocked || upload !== null || files.length >= 10}
               onChange={(e) => {
                 if (e.target.files?.[0]) attach(e.target.files[0]);
                 e.target.value = '';
@@ -186,7 +245,10 @@ export function Composer({
             className="primary send"
             aria-label="Send message"
             disabled={
-              upload !== null || text.length > maxChars || (!parsed.body.trim() && !files.length)
+              blocked ||
+              upload !== null ||
+              text.length > maxChars ||
+              (!parsed.body.trim() && !files.length)
             }
             onClick={submit}
           >

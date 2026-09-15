@@ -1,6 +1,7 @@
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { promisify } from 'node:util';
 import { EventEmitter } from 'node:events';
+import { StringDecoder } from 'node:string_decoder';
 import Ajv from 'ajv';
 import { z } from 'zod';
 import initSchema from '../schema/v1/InitializeParams.json';
@@ -92,6 +93,7 @@ export class CodexAdapter extends EventEmitter {
   >();
   private nextId = 0;
   private buffer = '';
+  private decoder = new StringDecoder('utf8');
   private running = new Map<string, string>();
   private fatal?: Error;
   constructor(readonly executable: string) {
@@ -123,7 +125,7 @@ export class CodexAdapter extends EventEmitter {
       ),
     );
     this.child.stdout.on('data', (chunk: Buffer) => {
-      this.buffer += chunk.toString();
+      this.buffer += this.decoder.write(chunk);
       if (this.buffer.length > 8 * 1024 * 1024) {
         this.fail(new Error('Codex output exceeded the transport limit.'));
         this.child?.kill();
@@ -298,30 +300,28 @@ export class CodexAdapter extends EventEmitter {
     this.on('failure', onFailure);
     this.running.set(threadId, 'starting');
     try {
-      const response = z
-        .object({ turn: turnSchemaResponse })
-        .parse(
-          await this.request('turn/start', {
-            threadId,
-            cwd,
-            approvalPolicy: 'never',
-            sandboxPolicy: { type: 'dangerFullAccess' },
-            clientUserMessageId: dispatchId,
-            input: [
-              { type: 'text', text: JSON.stringify(context) },
-              ...images.map((path) => ({ type: 'localImage', path })),
-            ],
-            outputSchema: {
-              type: 'object',
-              properties: {
-                kind: { type: 'string', enum: ['reply', 'wait', 'silent'] },
-                text: { type: 'string' },
-              },
-              required: ['kind', 'text'],
-              additionalProperties: false,
+      const response = z.object({ turn: turnSchemaResponse }).parse(
+        await this.request('turn/start', {
+          threadId,
+          cwd,
+          approvalPolicy: 'never',
+          sandboxPolicy: { type: 'dangerFullAccess' },
+          clientUserMessageId: dispatchId,
+          input: [
+            { type: 'text', text: JSON.stringify(context) },
+            ...images.map((path) => ({ type: 'localImage', path })),
+          ],
+          outputSchema: {
+            type: 'object',
+            properties: {
+              kind: { type: 'string', enum: ['reply', 'wait', 'silent'] },
+              text: { type: 'string' },
             },
-          }),
-        );
+            required: ['kind', 'text'],
+            additionalProperties: false,
+          },
+        }),
+      );
       this.running.set(threadId, response.turn.id);
       await onStarted(response.turn.id);
       if (response.turn.status !== 'inProgress') resolveFinal(response.turn);

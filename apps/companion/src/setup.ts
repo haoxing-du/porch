@@ -7,14 +7,14 @@ import {
   rename,
   realpath,
   chmod,
-  copyFile,
+  cp,
   mkdtemp,
   rm,
   lstat,
 } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { CODEX_VERSION } from '../../../packages/contracts/src/index';
 const exec = promisify(execFile);
@@ -40,10 +40,16 @@ export async function loadSettings(path: string): Promise<Settings> {
     throw new Error('Companion settings are damaged. Restore the settings file before connecting.');
   }
 }
+const settingsWrites = new Map<string, Promise<void>>();
 export async function saveSettings(path: string, settings: Settings) {
-  const temp = path + '.tmp';
-  await writeFile(temp, JSON.stringify(settingsSchema.parse(settings)), { mode: 0o600 });
-  await rename(temp, path);
+  const content = JSON.stringify(settingsSchema.parse(settings));
+  const operation = (settingsWrites.get(path) ?? Promise.resolve()).then(async () => {
+    const temp = `${path}.${randomUUID()}.tmp`;
+    await writeFile(temp, content, { mode: 0o600 });
+    await rename(temp, path);
+  });
+  settingsWrites.set(path, operation);
+  await operation;
 }
 export function serviceOrigin(value: string) {
   const url = new URL(value);
@@ -80,7 +86,12 @@ export async function discoverCodex(selected?: string, bundled?: string) {
       /* Candidates that do not run are shown as missing if none succeeds. */
     }
   }
-  return { selected: found.find((p) => p.version === `codex-cli ${CODEX_VERSION}`), found };
+  return {
+    selected: found.find(
+      (p) => (!selected || p.path === selected) && p.version === `codex-cli ${CODEX_VERSION}`,
+    ),
+    found,
+  };
 }
 export async function keychainStore(hostId: string, credential: string) {
   z.string().uuid().parse(hostId);
@@ -173,18 +184,26 @@ export async function installCodex(directory: string, onProgress: (text: string)
     const archive = join(temp, 'codex.tgz');
     await writeFile(archive, bytes);
     const listing = await exec('/usr/bin/tar', ['-tzf', archive]);
-    const target = listing.stdout
-      .split('\n')
-      .filter((p) => /^package\/vendor\/(aarch64|x86_64)-apple-darwin\/codex\/codex$/.test(p));
-    if (target.length !== 1)
+    const targetName = arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
+    const prefix = `package/vendor/${targetName}/`;
+    const entries = listing.stdout.split('\n').filter((p) => p.startsWith(prefix));
+    const required = [
+      'bin/codex',
+      'bin/codex-code-mode-host',
+      'codex-package.json',
+      'codex-path/rg',
+      'codex-resources/zsh/bin/zsh',
+    ];
+    if (entries.length !== required.length || required.some((p) => !entries.includes(prefix + p)))
       throw new Error('Codex archive format changed. Select an executable manually.');
-    await exec('/usr/bin/tar', ['-xzf', archive, '-C', temp, target[0]]);
-    const extracted = join(temp, target[0]);
-    if (!(await lstat(extracted)).isFile())
-      throw new Error('Codex archive did not contain a regular executable.');
+    await exec('/usr/bin/tar', ['-xzf', archive, '-C', temp, ...entries]);
+    for (const entry of entries)
+      if (!(await lstat(join(temp, entry))).isFile())
+        throw new Error('Codex archive contains an unexpected file type.');
     await mkdir(directory, { recursive: true });
-    const executable = join(directory, 'codex');
-    await copyFile(extracted, executable);
+    const destination = await mkdtemp(join(directory, `${CODEX_VERSION}-`));
+    await cp(join(temp, 'package/vendor', targetName), destination, { recursive: true });
+    const executable = join(destination, 'bin/codex');
     await chmod(executable, 0o755);
     const output = await exec(executable, ['--version'], { timeout: 10000 });
     if (output.stdout.trim() !== `codex-cli ${CODEX_VERSION}`)

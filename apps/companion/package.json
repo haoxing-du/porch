@@ -4,5 +4,6 @@
   "description": "Connect your Mac to Porch",
   "author": "Porch contributors",
   "main": "dist/main.cjs",
-  "private": true
+  "private": true,
+  "type": "module"
 }

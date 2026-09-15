@@ -242,6 +242,24 @@ if (!app.requestSingleInstanceLock()) {
           await runtime?.heartbeat();
         });
       });
+      ipcMain.handle('porch:repair-project', (event, value: unknown) => {
+        guard(event);
+        return mutate(async () => {
+          const localId = z.string().uuid().parse(value);
+          const project = settings.projects.find((p) => p.localId === localId);
+          if (!project) throw new Error('Project not found.');
+          const result = await dialog.showOpenDialog(window, {
+            title: `Repair ${project.label}`,
+            properties: ['openDirectory'],
+          });
+          if (result.canceled) return;
+          const path = await canonicalProject(result.filePaths[0]);
+          await disconnect();
+          project.path = path;
+          await saveSettings(settingsPath, settings);
+          connection = 'Project repaired. Click Connect to resume.';
+        });
+      });
       ipcMain.handle('porch:executable', (event) => {
         guard(event);
         return mutate(async () => {
@@ -325,7 +343,7 @@ if (!app.requestSingleInstanceLock()) {
         return shell.openExternal(settings.origin);
       });
       await window.loadFile(join(__dirname, 'index.html'));
-      show();
+      if (!app.getLoginItemSettings().wasOpenedAtLogin) show();
       await check();
       if (settings.hostId && settings.projects.length) {
         try {

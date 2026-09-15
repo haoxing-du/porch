@@ -196,3 +196,51 @@ it('does not acknowledge a disconnected stop and never silently replaces a lost 
     (await f.db.query('SELECT state FROM agent_sessions WHERE id=$1', [d.sessionId])).rows[0].state,
   ).toBe('stopping');
 });
+it('rejects unregistered project changes and owner-only bot configuration', async () => {
+  await send('First');
+  const d = await dispatch();
+  expect(
+    (
+      await f.app.inject({
+        method: 'POST',
+        url: `/api/sessions/${d.sessionId}/action`,
+        headers: { cookie: sam },
+        payload: { action: 'fresh', confirmed: true, projectId: crypto.randomUUID() },
+      })
+    ).statusCode,
+  ).toBe(400);
+  expect(
+    (
+      await f.app.inject({
+        method: 'PATCH',
+        url: `/api/bots/${bot}`,
+        headers: { cookie: sam },
+        payload: { enabled: false },
+      })
+    ).statusCode,
+  ).toBe(403);
+  expect(
+    (
+      await f.app.inject({
+        method: 'POST',
+        url: `/api/sessions/${d.sessionId}/action`,
+        headers: { cookie: alex },
+        payload: { action: 'fresh', confirmed: true, path: '/etc' },
+      })
+    ).statusCode,
+  ).toBe(400);
+});
+it('cancels accepted requests on stop and ignores their late result', async () => {
+  await send('Start this');
+  const d = await dispatch();
+  await event(d, 'accepted', { threadId: 'thread' });
+  await call(f.app, sam, 'POST', `/api/sessions/${d.sessionId}/action`, { action: 'stop' });
+  expect(
+    (await f.db.query('SELECT state FROM requests WHERE session_id=$1', [d.sessionId])).rows[0]
+      .state,
+  ).toBe('canceled');
+  await event(d, 'completed', { outcome: { kind: 'reply', text: 'LATE RESULT' }, itemId: 'late' });
+  expect(
+    JSON.stringify(await call(f.app, alex, 'GET', `/api/topics/${topic}/messages`)),
+  ).not.toContain('LATE RESULT');
+});

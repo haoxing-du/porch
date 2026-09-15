@@ -162,11 +162,23 @@ export function chatRoutes(app: FastifyInstance, db: pg.Pool, cfg: Config, sched
     await topicAccess(db, (await user(db, req)).id, topic);
     const query = z
       .object({
+        around: id.optional(),
         before: z.coerce.number().int().positive().optional(),
         after: z.coerce.number().int().nonnegative().optional(),
         limit: z.coerce.number().int().min(1).max(100).default(50),
       })
       .parse(req.query);
+    if (query.around) {
+      const target = (
+        await db.query('SELECT seq FROM messages WHERE id=$1 AND topic_id=$2', [
+          query.around,
+          topic,
+        ])
+      ).rows[0];
+      if (!target) throw new Problem(404, 'Message not found in this topic.');
+      query.before = target.seq + Math.ceil(query.limit / 2);
+      query.after = Math.max(0, target.seq - Math.floor(query.limit / 2) - 1);
+    }
     const result = await messages(db, topic, query);
     return { messages: result, hasMore: result.length === query.limit };
   });
