@@ -24,3 +24,10 @@ Write a failing behavior test, implement the behavior, then run the test. Commit
 
 - Repository started from existing remote main (README and license).
 - Local PostgreSQL 16.9 is running; local Codex CLI reports 0.153.1.
+
+### Human-chat checkpoint
+
+- 15 tests pass against isolated PostgreSQL schemas: two-member invite flow, concurrent ordering, send retries, retained history after service restart, membership denial, human-only parsing/projection, monotonic read cursors, revoked invites and removed membership.
+- Browser test passes with two separate contexts: live messages, human-only display, page reload, and 390 px topic navigation/send. Desktop and phone screenshots were inspected.
+- Production web build passes. GitHub OAuth is implemented but the real provider callback still needs an OAuth app registration.
+- Node 22.12+ is required. Updated vulnerable initial package selections; dependency audit reports zero vulnerabilities.

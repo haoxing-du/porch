@@ -1,0 +1,19 @@
+import { test, expect } from '@playwright/test';
+test('two people chat live, reload history, and navigate on a phone',async({browser,page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'Continue as Alex'}).click();
+  await page.getByRole('button',{name:'Create workspace',exact:true}).click();
+  await page.getByLabel('Workspace name').fill(`Friends ${Date.now()}`);await page.getByRole('button',{name:'Create',exact:true}).click();
+  await page.getByRole('button',{name:'Invite friends'}).click();
+  const link=await page.getByLabel('Invitation link').inputValue();await page.getByRole('button',{name:'Close dialog'}).click();
+  const second=await browser.newContext();const sam=await second.newPage();
+  await sam.goto(link);await sam.getByRole('button',{name:'Continue as Sam'}).click();await sam.getByRole('button',{name:'Join workspace'}).click();
+  await page.getByRole('button',{name:'Welcome',exact:false}).first().click();await sam.getByRole('button',{name:'Welcome',exact:false}).first().click();
+  await page.getByRole('textbox',{name:'Message'}).fill('Hello from Alex');await page.getByRole('button',{name:'Send message'}).click();
+  await expect(sam.getByText('Hello from Alex',{exact:true})).toBeVisible();
+  await sam.getByRole('textbox',{name:'Message'}).fill('/nb human secret');await sam.getByRole('button',{name:'Send message'}).click();
+  await expect(page.getByText('human secret',{exact:true})).toBeVisible();
+  await page.reload();await expect(page.getByText('Hello from Alex',{exact:true})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Open navigation'}).click();await expect(page.getByRole('button',{name:'New topic'})).toBeVisible();await page.getByRole('button',{name:'Welcome',exact:false}).first().click();
+  await page.getByRole('textbox',{name:'Message'}).fill('From a phone');await page.getByRole('button',{name:'Send message'}).click();await expect(sam.getByText('From a phone',{exact:true})).toBeVisible();
+  await page.screenshot({path:'test-results/chat-mobile.png',fullPage:true});await sam.screenshot({path:'test-results/chat-desktop.png',fullPage:true});await second.close();
+});
