@@ -1,0 +1,5 @@
+{
+  "compilerOptions": {"target": "ES2022", "lib": ["ES2022", "DOM", "DOM.Iterable"], "module": "ESNext", "moduleResolution": "Bundler", "strict": true, "esModuleInterop": true, "skipLibCheck": true, "jsx": "react-jsx", "resolveJsonModule": true, "allowImportingTsExtensions": true, "noEmit": true, "types": ["node", "vite/client"]},
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "tests/**/*.ts", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"],
+  "exclude": ["**/dist", "packages/codex-adapter/schema"]
+}
