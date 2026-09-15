@@ -1183,3 +1183,17 @@ select {
 .activity p {
   margin: 10px 0;
 }
+.delivery-notice {
+  font-size: 10px;
+  color: #946a43;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.delivery-notice button {
+  font-size: 10px;
+  padding: 4px 7px;
+  background: #f8f2e3;
+  border-color: #e6d8b7;
+}

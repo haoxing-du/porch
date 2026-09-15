@@ -244,3 +244,108 @@ it('cancels accepted requests on stop and ignores their late result', async () =
     JSON.stringify(await call(f.app, alex, 'GET', `/api/topics/${topic}/messages`)),
   ).not.toContain('LATE RESULT');
 });
+it('marks each offline message as not sent and retries the selected request', async () => {
+  f.app.relay.connections.delete(host);
+  await f.db.query('UPDATE hosts SET last_seen=NULL WHERE id=$1', [host]);
+  const first = await send('First offline request');
+  const second = await send('Second offline request');
+  const chat = await call(f.app, alex, 'GET', `/api/topics/${topic}/messages`);
+  expect(chat.messages.find((m: { id: string }) => m.id === first.id).agentDelivery[0].state).toBe(
+    'offline',
+  );
+  await f.db.query('UPDATE hosts SET last_seen=now() WHERE id=$1', [host]);
+  f.app.relay.connections.set(host, {
+    send: (data: string) => {
+      const p = JSON.parse(data);
+      if (p.type === 'dispatch') delivered.push(p);
+    },
+    readyState: 1,
+    bufferedAmount: 0,
+    close: () => {},
+  } as never);
+  const session = (await f.db.query('SELECT id FROM agent_sessions')).rows[0].id;
+  await call(f.app, alex, 'POST', `/api/sessions/${session}/action`, {
+    action: 'retry',
+    messageId: first.id,
+  });
+  const d = await dispatch();
+  expect(d.context.messages.filter((m) => m.purpose === 'request').map((m) => m.id)).toEqual([
+    first.id,
+  ]);
+  expect(
+    (await f.db.query('SELECT state FROM requests WHERE message_id=$1', [second.id])).rows[0].state,
+  ).toBe('offline');
+});
+it('issues grants only for eligible current attachments and denies a human-only grant', async () => {
+  const { hash } = await import('../apps/server/src/core');
+  const { writeFile, mkdir } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const owner = (await call(f.app, alex, 'GET', '/api/me')).user.id;
+  async function attach(body: string, secret: boolean) {
+    const key = crypto.randomUUID(),
+      fileId = crypto.randomUUID();
+    await mkdir(f.cfg.uploadDir, { recursive: true });
+    await writeFile(join(f.cfg.uploadDir, key), body);
+    await f.db.query(
+      'INSERT INTO attachments(id,workspace_id,owner_id,topic_id,object_key,name,media_type,size) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+      [fileId, workspace, owner, topic, key, body, 'application/octet-stream', body.length],
+    );
+    const message = await call(f.app, alex, 'POST', `/api/topics/${topic}/messages`, {
+      body: secret ? '/nb FILE_SECRET_CANARY' : 'Use this attachment',
+      clientKey: crypto.randomUUID(),
+      attachmentIds: [fileId],
+      mentions: secret ? [] : [{ id: bot, type: 'bot' }],
+    });
+    return { fileId, message };
+  }
+  const hidden = await attach('HUMAN_ONLY_ATTACHMENT_CANARY', true);
+  const visible = await attach('public file', false);
+  const d = await dispatch();
+  expect(JSON.stringify(d)).not.toContain('CANARY');
+  expect(d.context.messages.at(-1)!.attachments[0].id).toBe(visible.fileId);
+  const url = d.context.messages.at(-1)!.attachments[0].url!;
+  expect((await f.app.inject({ url: new URL(url).pathname })).body).toBe('public file');
+  const token = 'test_secret_attachment_grant_123456789';
+  await f.db.query("INSERT INTO attachment_grants VALUES($1,$2,$3,$4,now()+interval '1 minute')", [
+    hash(token),
+    hidden.fileId,
+    d.sessionId,
+    d.dispatchId,
+  ]);
+  expect((await f.app.inject({ url: `/api/agent-attachments/${token}` })).statusCode).toBe(403);
+  await call(f.app, alex, 'POST', `/api/sessions/${d.sessionId}/action`, {
+    action: 'fresh',
+    confirmed: true,
+    projectId: project,
+  });
+  expect((await f.app.inject({ url: new URL(url).pathname })).statusCode).toBe(403);
+});
+it('keeps new queued requests runnable when an old offline request is retried', async () => {
+  f.app.relay.connections.delete(host);
+  await f.db.query('UPDATE hosts SET last_seen=NULL WHERE id=$1', [host]);
+  const old = await send('Old offline request');
+  await f.db.query('UPDATE hosts SET last_seen=now() WHERE id=$1', [host]);
+  f.app.relay.connections.set(host, {
+    send: (data: string) => {
+      const p = JSON.parse(data);
+      if (p.type === 'dispatch') delivered.push(p);
+    },
+    readyState: 1,
+    bufferedAmount: 0,
+    close: () => {},
+  } as never);
+  const later = await send('New live follow-up', false);
+  const session = (await f.db.query('SELECT id FROM agent_sessions')).rows[0].id;
+  await call(f.app, alex, 'POST', `/api/sessions/${session}/action`, {
+    action: 'retry',
+    messageId: old.id,
+  });
+  await f.db.query("UPDATE requests SET due_at=now() WHERE state='pending'");
+  const first = await dispatch();
+  await event(first, 'accepted', { threadId: 'same-thread' });
+  await event(first, 'completed', { outcome: { kind: 'silent', text: '' }, itemId: 'silent' });
+  const next = await dispatch();
+  expect(next.context.messages.some((m) => m.id === later.id && m.purpose === 'request')).toBe(
+    true,
+  );
+});

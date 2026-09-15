@@ -253,6 +253,7 @@ export function hostRoutes(app: FastifyInstance, db: pg.Pool, relay: Relay, stor
     const input = z
       .object({
         action: z.enum(['stop', 'dismiss', 'fresh', 'retry']),
+        messageId: id.optional(),
         confirmed: z.boolean().optional(),
         projectId: id.optional(),
       })
@@ -296,8 +297,8 @@ export function hostRoutes(app: FastifyInstance, db: pg.Pool, relay: Relay, stor
           throw new Problem(409, 'Wait for current work to stop before retrying.');
         const r = (
           await c.query(
-            "SELECT r.id FROM requests r JOIN messages m ON m.id=r.message_id WHERE r.session_id=$1 AND r.state IN ('offline','uncertain','failed','canceled','accepted','dispatched') ORDER BY m.seq DESC LIMIT 1",
-            [session],
+            "SELECT r.id FROM requests r JOIN messages m ON m.id=r.message_id WHERE r.session_id=$1 AND r.state IN ('offline','uncertain','failed','canceled','accepted','dispatched') AND ($2::uuid IS NULL OR m.id=$2) ORDER BY m.seq DESC LIMIT 1",
+            [session, input.messageId ?? null],
           )
         ).rows[0];
         if (!r) throw new Problem(409, 'There is no request to retry. Send a new message.');
@@ -309,6 +310,10 @@ export function hostRoutes(app: FastifyInstance, db: pg.Pool, relay: Relay, stor
           "UPDATE runs SET status='interrupted' WHERE session_id=$1 AND status='uncertain'",
           [session],
         );
+        await c.query("UPDATE requests SET epoch=$2 WHERE session_id=$1 AND state='pending'", [
+          session,
+          s.epoch + 1,
+        ]);
         await c.query("UPDATE requests SET state='pending',epoch=$2,due_at=now() WHERE id=$1", [
           r.id,
           s.epoch + 1,

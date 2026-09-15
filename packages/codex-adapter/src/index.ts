@@ -75,6 +75,8 @@ export function repairMessage(error: unknown) {
   const text = error instanceof Error ? error.message : String(error);
   if (/auth|login|sign.?in|401/i.test(text))
     return 'Codex sign-in expired. Open the companion and sign in again.';
+  if (/managed|policy|approval/i.test(text))
+    return 'Your Codex policy does not allow unattended work in this mode. Ask its administrator for a supported configuration.';
   if (/rate|limit|quota|429/i.test(text))
     return 'Codex reached a provider limit. Check your account and retry later.';
   if (/thread.*(not found|missing)|no rollout/i.test(text))

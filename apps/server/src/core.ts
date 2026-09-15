@@ -76,11 +76,31 @@ export async function messages(
   const attachments = (
     await db.query('SELECT * FROM attachments WHERE message_id=ANY($1::uuid[])', [ids])
   ).rows;
+  const deliveries = opts.eligible
+    ? []
+    : (
+        await db.query(
+          'SELECT r.message_id,r.state,r.session_id,b.bot_id,bot.name FROM requests r JOIN agent_sessions s ON s.id=r.session_id JOIN bindings b ON b.id=s.binding_id JOIN bots bot ON bot.id=b.bot_id WHERE r.message_id=ANY($1::uuid[])',
+          [ids],
+        )
+      ).rows;
   return rows.map((r) => ({
     id: r.id,
     seq: r.seq,
     body: r.body,
     humanOnly: r.human_only,
+    ...(opts.eligible
+      ? {}
+      : {
+          agentDelivery: deliveries
+            .filter((d) => d.message_id === r.id)
+            .map((d) => ({
+              botId: d.bot_id,
+              botName: d.name,
+              sessionId: d.session_id,
+              state: d.state,
+            })),
+        }),
     author: { id: r.author_id, name: r.author_name, type: r.author_type },
     createdAt: r.created_at.toISOString(),
     mentions: mentions

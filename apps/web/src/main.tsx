@@ -174,7 +174,7 @@ function App() {
         if (
           data.events.some(
             (v: { kind: string; topic_id: string }) =>
-              v.kind === 'message' && v.topic_id === routeRef.current.topic,
+              ['message', 'session'].includes(v.kind) && v.topic_id === routeRef.current.topic,
           )
         )
           loadHistory().catch((e) => setError(e.message));
@@ -710,6 +710,36 @@ function App() {
                         {m.body}
                       </Markdown>
                     </div>
+                    {(m.agentDelivery ?? [])
+                      .filter((d) =>
+                        ['offline', 'failed', 'uncertain', 'canceled'].includes(d.state),
+                      )
+                      .map((d) => (
+                        <div className="delivery-notice" key={d.sessionId}>
+                          <span>
+                            {d.botName}:{' '}
+                            {d.state === 'offline'
+                              ? 'Not sent to agent'
+                              : d.state === 'uncertain'
+                                ? 'Run needs checking'
+                                : d.state === 'canceled'
+                                  ? 'Canceled'
+                                  : 'Failed'}
+                          </span>
+                          <button
+                            onClick={() =>
+                              action(() =>
+                                api(`/sessions/${d.sessionId}/action`, 'POST', {
+                                  action: 'retry',
+                                  messageId: m.id,
+                                }),
+                              )
+                            }
+                          >
+                            Retry this request
+                          </button>
+                        </div>
+                      ))}
                     {m.attachments.map((a) => (
                       <div className="attachment" key={a.id}>
                         {a.mediaType.startsWith('image/') && (

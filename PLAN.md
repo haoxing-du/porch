@@ -47,3 +47,11 @@ Write a failing behavior test, implement the behavior, then run the test. Commit
 - Native companion UI launched with fresh settings, paired, and detected Codex. Folder selection is blocked by the locked Mac; an unlock request is pending. The test was stopped and its temporary data/credential removed.
 - Added red/green fixes for UTF-8 split across stdio chunks, simultaneous settings saves, lost-response retries across refresh, old message links, and human-only draft visibility.
 - Deployment, environment, packaging, pilot, limitations, and evidence documents are in docs/. External gates remain open as listed in docs/limitations.md.
+
+### Final verification pass
+
+- GitHub CI passed for d76c5d6, including Linux/PostgreSQL tests, browser build, companion build, and browser acceptance checks.
+- Added per-message offline/canceled/uncertain notices and a retry for the selected message. A red test caught unrelated pending requests being left on an old epoch during retry; their epoch now advances too.
+- Agent attachment tests verify eligible grants, denial of human-only content even with a forged persisted grant, and invalidation after a fresh generation.
+- Final local regression: 41 unit/service tests, three browser tests, type checks, production build, and the real two-user Codex check passed. The second real check again verified reply, silent, waiting, shared thread continuity, and human-only exclusion.
+- Companion attachment downloads enforce the declared size while streaming, with a 100 MiB hard limit. This matches the service's configurable maximum and prevents unbounded buffering.

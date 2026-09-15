@@ -301,8 +301,23 @@ export class HostRuntime extends EventEmitter {
                 throw new Error('Attachment grant came from another service.');
               const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
               if (!response.ok) throw new Error('Attachment grant expired. Retry the request.');
-              const data = Buffer.from(await response.arrayBuffer());
-              if (data.length > 20971520 || data.length !== attachment.size)
+              if (!response.body || attachment.size > 104857600)
+                throw new Error('Attachment exceeds the host limit.');
+              const reader = response.body.getReader(),
+                chunks: Uint8Array[] = [];
+              let size = 0;
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                size += value.length;
+                if (size > attachment.size || size > 104857600) {
+                  await reader.cancel();
+                  throw new Error('Attachment exceeded its declared size.');
+                }
+                chunks.push(value);
+              }
+              const data = Buffer.concat(chunks);
+              if (data.length !== attachment.size)
                 throw new Error('Attachment size changed. Upload it again.');
               const directory = join(this.options.dataDir, 'staging', dispatch.sessionId);
               await mkdir(directory, { recursive: true });

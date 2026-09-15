@@ -26,8 +26,10 @@
 | `S3_ENDPOINT` | Optional endpoint for non-AWS S3 storage. |
 | `AWS_REGION` | S3 region; defaults to `us-east-1`. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Storage credentials, or use the host’s supported AWS credential provider. |
-| `MAX_FILE_BYTES` | Upload limit; default `20971520` (20 MiB). |
-| `MAX_MESSAGE_CHARS` | Message text limit; default `8000`. |
+| `MAX_FILE_BYTES` | Upload limit, 1 byte–100 MiB; default `20971520` (20 MiB). |
+| `MAX_MESSAGE_CHARS` | Message text limit, 1–24000; default `8000`. Batches remain within the context cap. |
+| `COMPANION_DOWNLOAD_PATH` | Optional local DMG path. Locally defaults to the built ARM64 artifact in `release/`. |
+| `COMPANION_DOWNLOAD_URL` | Optional public HTTPS URL for a signed/notarized companion; overrides the local download link. |
 | `POSTGRES_PASSWORD` | Database password used by the included Compose example. |
 
 The service stores opaque upload object keys and keeps the bucket private. Both human and agent downloads go through authorization checks. No public object ACL is needed. File bytes are served as downloads; only recognized bitmap signatures may preview inline. HTML/SVG is never executed in the chat origin.

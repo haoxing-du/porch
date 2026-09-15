@@ -29,6 +29,9 @@ export const messageSchema = z.object({
   createdAt: z.string(),
   mentions: z.array(mentionSchema),
   attachments: z.array(attachmentSchema),
+  agentDelivery: z
+    .array(z.object({ botId: id, botName: z.string(), sessionId: id, state: z.string() }))
+    .optional(),
 });
 export type Message = z.infer<typeof messageSchema>;
 export function parseMessage(text: string, toggle = false) {
@@ -57,7 +60,7 @@ export function projectContext(
   return {
     omitted: chosen.length < eligible.length,
     throughSeq: eligible.at(-1)?.seq ?? options.cursor,
-    messages: chosen.map(({ humanOnly: _, ...m }) => ({
+    messages: chosen.map(({ humanOnly: _, agentDelivery: _delivery, ...m }) => ({
       ...m,
       purpose: triggers.has(m.seq) ? ('request' as const) : ('background' as const),
     })),
@@ -69,7 +72,7 @@ export const contextSchema = z.object({
   messages: z
     .array(
       messageSchema
-        .omit({ humanOnly: true })
+        .omit({ humanOnly: true, agentDelivery: true })
         .extend({ purpose: z.enum(['request', 'background']) }),
     )
     .max(50),
