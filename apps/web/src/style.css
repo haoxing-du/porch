@@ -127,6 +127,7 @@ small {
   height: 100dvh;
   display: grid;
   grid-template-columns: 222px 268px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
 .workspace-nav {
@@ -367,6 +368,7 @@ small {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: #fcfcf9;
 }
 .topic-header {

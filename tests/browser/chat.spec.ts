@@ -1,4 +1,42 @@
 import { test, expect } from '@playwright/test';
+test('long conversations keep the header and composer in view', async ({ page }) => {
+  await page.request.post('/api/auth/dev', { data: { name: 'alex' } });
+  const workspace = await (
+    await page.request.post('/api/workspaces', {
+      data: { name: `Long chat ${Date.now()}` },
+    })
+  ).json();
+  const snapshot = await (
+    await page.request.get(`/api/workspaces/${workspace.id}/snapshot`)
+  ).json();
+  const topic = snapshot.topics[0].id;
+  for (let index = 0; index < 20; index++) {
+    await page.request.post(`/api/topics/${topic}/messages`, {
+      data: {
+        body: `Message ${index}: A longer conversation must keep its controls visible.`,
+        clientKey: crypto.randomUUID(),
+      },
+    });
+  }
+  await page.goto(`/w/${workspace.id}/t/${topic}`);
+  await expect(page.getByText('Message 19:', { exact: false })).toBeVisible();
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('.topic-header')).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('button', { name: 'Send message' })).toBeInViewport({ ratio: 1 });
+    await expect
+      .poll(() =>
+        page
+          .locator('.message-list')
+          .evaluate((element) => element.scrollHeight > element.clientHeight),
+      )
+      .toBe(true);
+  }
+  await page.screenshot({ path: 'test-results/long-chat-mobile.png', fullPage: true });
+});
 test('two people chat live, reload history, and navigate on a phone', async ({ browser, page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Continue as Alex' }).click();

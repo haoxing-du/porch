@@ -55,3 +55,4 @@ Write a failing behavior test, implement the behavior, then run the test. Commit
 - Agent attachment tests verify eligible grants, denial of human-only content even with a forged persisted grant, and invalidation after a fresh generation.
 - Final local regression: 41 unit/service tests, three browser tests, type checks, production build, and the real two-user Codex check passed. The second real check again verified reply, silent, waiting, shared thread continuity, and human-only exclusion.
 - Companion attachment downloads enforce the declared size while streaming, with a 100 MiB hard limit. This matches the service's configurable maximum and prevents unbounded buffering.
+- Final screenshot review found long conversations could push the composer outside the viewport. A failing browser test confirmed it. Constraining the grid row and conversation height fixed the issue; all four browser tests and the production build pass, with the phone screenshot checked.
