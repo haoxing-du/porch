@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Porch Companion</title>
+    <link rel="stylesheet" href="ui.css" />
+  </head>
+  <body>
+    <header>
+      <span class="brand">porch <i>✳</i></span
+      ><span class="tag">ON YOUR MAC</span>
+    </header>
+    <main>
+      <h1>A little closer to your work.</h1>
+      <p>Connect your Mac. Keep the conversation on Porch.</p>
+      <div class="status"><span class="dot"></span><strong id="connection">Starting…</strong></div>
+      <p id="error" role="alert" hidden></p>
+      <section>
+        <h2><span>1</span> Pair this Mac</h2>
+        <form id="pair-form">
+          <label
+            >Porch address<input
+              id="origin"
+              type="url"
+              required
+              placeholder="https://porch.example.com" /></label
+          ><label
+            >Pairing code<input
+              id="token"
+              required
+              placeholder="From workspace settings"
+              autocomplete="off" /></label
+          ><button type="submit">Pair Mac</button>
+        </form>
+        <div id="paired" hidden>
+          <p>This Mac is paired with your workspace.</p>
+          <button id="forget" class="secondary">Forget pairing</button>
+        </div>
+      </section>
+      <section>
+        <h2><span>2</span> Set up Codex</h2>
+        <p id="setup">Checking installation…</p>
+        <div class="buttons">
+          <button id="install">Install supported Codex</button
+          ><button id="executable" class="secondary">Choose executable</button
+          ><button id="signin" class="secondary">Sign in</button
+          ><button id="check" class="secondary">Check again</button>
+        </div>
+        <details>
+          <summary>Installation details</summary>
+          <p id="executable-path"></p>
+          <p>
+            Porch uses your Codex account and its available model. Your provider credentials stay on
+            this Mac.
+          </p>
+        </details>
+      </section>
+      <section>
+        <h2><span>3</span> Choose a project</h2>
+        <ul id="projects"></ul>
+        <form id="project-form">
+          <label
+            >Project label<input
+              id="project-label"
+              required
+              maxlength="80"
+              placeholder="Weekend project" /></label
+          ><button type="submit">Choose folder…</button>
+        </form>
+        <p class="note">
+          Create and enable your bot in workspace settings after connecting. Workspace members can
+          then direct it with this Mac’s configured access.
+        </p>
+      </section>
+      <section class="finish">
+        <label class="check"
+          ><input id="login-item" type="checkbox" />Start at login (recommended)</label
+        >
+        <div class="buttons">
+          <button id="connect">Connect</button
+          ><button id="disconnect" class="secondary">Stop & disconnect</button
+          ><button id="open-chat" class="secondary">Open chat ↗</button>
+        </div>
+        <p class="note">Closing this window keeps the companion in your menu bar.</p>
+      </section>
+    </main>
+    <script src="ui.js"></script>
+  </body>
+</html>

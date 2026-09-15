@@ -1,0 +1,7 @@
+node_modules
+**/dist
+release
+packages/codex-adapter/schema
+SPEC.md
+AGENTS.md
+package-lock.json

@@ -31,3 +31,11 @@ Write a failing behavior test, implement the behavior, then run the test. Commit
 - Browser test passes with two separate contexts: live messages, human-only display, page reload, and 390 px topic navigation/send. Desktop and phone screenshots were inspected.
 - Production web build passes. GitHub OAuth is implemented but the real provider callback still needs an OAuth app registration.
 - Node 22.12+ is required. Updated vulnerable initial package selections; dependency audit reports zero vulnerabilities.
+
+### Real Codex and recovery checkpoint
+
+- Real check passed on 2026-09-15 with Codex 0.153.1, PostgreSQL, two Chromium browser contexts, outbound host WebSocket, and stdio app-server. Evidence: `docs/real-codex-evidence.json`.
+- A mention created a real file in a disposable Git repository. A second user appended a line in the same Codex thread after the first browser closed. Reply, silent, and wait outcomes passed.
+- The real human-only canary was absent from dispatch context and the host journal.
+- Recovery tests cover stale output after fresh sessions, dismiss/reinvite continuity, explicit offline retry, deduplicated output, folder aliases, and corrupt journals.
+- Fixed a contributing factor found during testing: a stop arriving before its dispatch had no acknowledgment. The host now persists a cancellation marker and acknowledges that no work started.

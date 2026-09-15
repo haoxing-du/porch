@@ -1,0 +1,16 @@
+{
+  "started": "2026-09-15T06:16:18.687Z",
+  "completed": "2026-09-15T06:16:40.109Z",
+  "runtime": "codex-cli 0.153.1",
+  "platform": "darwin",
+  "checks": [
+    "Two browser users in one invited workspace",
+    "Real greeting.txt creation from a structured web mention",
+    "Second member follow-up edits same file in same Codex thread",
+    "First browser closes without ending host/session",
+    "Structured reply, silent, and wait outcomes",
+    "Human-only canary absent from run payloads and host journal"
+  ],
+  "threadId": "01a0a3b5-93e0-7861-b374-370bfd914bff",
+  "fileContents": "hello porch\nfrom sam\n"
+}
